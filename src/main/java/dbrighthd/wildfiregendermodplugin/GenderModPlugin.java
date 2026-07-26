@@ -60,7 +60,9 @@ public final class GenderModPlugin extends JavaPlugin {
 
         // Fabric
         getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.SEND_GENDER_INFO, payloadListener);
+        getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.HELLO_SERVERBOUND, payloadListener);
         getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.SYNC);
+        getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.HELLO_CLIENTBOUND);
 
         // Forge
         getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.FORGE, payloadListener);

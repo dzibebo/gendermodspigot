@@ -26,6 +26,12 @@ public final class ModConstants {
      */
     public static final String SYNC = MOD_ID + ":sync";
 
+    /**
+     * Payload channels used for version handshake.
+     */
+    public static final String HELLO_SERVERBOUND = MOD_ID + ":serverbound/hello";
+    public static final String HELLO_CLIENTBOUND = MOD_ID + ":clientbound/hello";
+
     private ModConstants() {
     }
 }

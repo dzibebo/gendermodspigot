@@ -90,4 +90,14 @@ public class NetworkManager {
     private void sendData(Player target, String channel, byte[] data) {
         target.sendPluginMessage(plugin, channel, data);
     }
+
+    public void sendHello(Player target) {
+        try (ByteArrayOutputStream payload = new ByteArrayOutputStream();
+             CraftOutputStream output = new CraftOutputStream(payload)) {
+            output.writeVarInt(1);
+            sendData(target, ModConstants.HELLO_CLIENTBOUND, payload.toByteArray());
+        } catch (IOException ex) {
+            plugin.getCustomLogger().warning(ex, "Could not serialize hello packet");
+        }
+    }
 }
