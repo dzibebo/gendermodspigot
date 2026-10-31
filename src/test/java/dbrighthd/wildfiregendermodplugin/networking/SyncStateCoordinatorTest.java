@@ -64,6 +64,29 @@ class SyncStateCoordinatorTest {
     }
 
     @Test
+    void modernFabricPrefersModernClientboundSync() {
+        Fixture fixture = fixture(true);
+        Player viewer = player();
+
+        fixture.coordinator().onChannelRegistered(viewer, ModConstants.CLIENTBOUND_SYNC_MODERN);
+        fixture.coordinator().onHelloAccepted(viewer);
+
+        verify(fixture.networkManager()).syncTo(viewer);
+        assertEquals(ModConstants.CLIENTBOUND_SYNC_MODERN, fixture.coordinator().preferredChannel(viewer));
+    }
+
+    @Test
+    void modernForgeDoesNotRequireHello() {
+        Fixture fixture = fixture(true);
+        Player viewer = player();
+
+        fixture.coordinator().onChannelRegistered(viewer, ModConstants.FORGE_MODERN);
+
+        verify(fixture.networkManager()).syncTo(viewer);
+        assertEquals(ModConstants.FORGE_MODERN, fixture.coordinator().preferredChannel(viewer));
+    }
+
+    @Test
     void fabricTakesPriorityWithoutDuplicateCatchUp() {
         Fixture fixture = fixture(true);
         Player viewer = player();

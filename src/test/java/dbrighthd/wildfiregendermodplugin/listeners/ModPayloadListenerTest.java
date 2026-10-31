@@ -67,6 +67,23 @@ class ModPayloadListenerTest {
     }
 
     @Test
+    void acceptsModernServerboundSyncPayload() throws IOException {
+        Fixture fixture = fixture();
+        UUID playerId = UUID.randomUUID();
+        Player player = player(playerId);
+        ModUser user = ProtocolTest.testUser(playerId);
+        when(fixture.networkManager().deserializeUser(any(byte[].class), eq(false))).thenReturn(user);
+
+        fixture.listener().onPluginMessageReceived(
+                ModConstants.SERVERBOUND_SYNC_MODERN, player, new byte[InboundPacketGuard.MAX_SYNC_BYTES]);
+
+        verify(fixture.guard()).tryAcquire(playerId);
+        verify(fixture.networkManager()).deserializeUser(any(byte[].class), eq(false));
+        verify(fixture.networkManager()).broadcast(player, user);
+        verify(fixture.coordinator()).onChannelRegistered(player, ModConstants.CLIENTBOUND_SYNC_MODERN);
+    }
+
+    @Test
     void dropsRateLimitedPayloadBeforeParsing() throws IOException {
         Fixture fixture = fixture();
         Player player = player(UUID.randomUUID());
@@ -119,6 +136,18 @@ class ModPayloadListenerTest {
 
         verify(fixture.coordinator()).onHelloAccepted(accepted);
         verify(fixture.coordinator(), never()).onHelloAccepted(mismatched);
+    }
+
+    @Test
+    void acceptsModernHelloVersions() throws IOException {
+        Fixture fixture = fixture();
+        Player accepted = player(UUID.randomUUID());
+        when(fixture.networkManager().handleHello(accepted, ModConstants.SERVERBOUND_HELLO_MODERN, new byte[]{1}))
+                .thenReturn(new NetworkManager.HelloResult(1, true));
+
+        fixture.listener().onPluginMessageReceived(ModConstants.SERVERBOUND_HELLO_MODERN, accepted, new byte[]{1});
+
+        verify(fixture.coordinator()).onHelloAccepted(accepted);
     }
 
     private static Fixture fixture() {

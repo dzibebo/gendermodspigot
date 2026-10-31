@@ -18,7 +18,7 @@ public class ModSyncPacketV5 implements ModSyncPacket {
 
     @Override
     public String getModRange() {
-        return "5.0.0-Beta.4";
+        return "5.0.0+";
     }
 
     @Override

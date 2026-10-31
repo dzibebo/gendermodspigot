@@ -74,17 +74,27 @@ public final class GenderModPlugin extends JavaPlugin {
     private void registerModListeners() {
         ModPayloadListener payloadListener = new ModPayloadListener(this);
 
-        // Fabric
+        // Modern (female_gender_mod) - Fabric & NeoForge
+        getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.SERVERBOUND_SYNC_MODERN, payloadListener);
+        getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.SYNC_MODERN, payloadListener);
+        getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.CLIENTBOUND_SYNC_MODERN);
+        getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.SYNC_MODERN);
+        getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.FORGE_MODERN, payloadListener);
+        getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.FORGE_MODERN);
+
+        // Legacy (wildfire_gender) - Fabric
         getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.SEND_GENDER_INFO, payloadListener);
         getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.SYNC);
 
-        // Forge
+        // Legacy (wildfire_gender) - Forge
         getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.FORGE, payloadListener);
         getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.FORGE);
 
         if (networkManager.supportsHello()) {
             getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.SERVERBOUND_HELLO, payloadListener);
             getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.CLIENTBOUND_HELLO);
+            getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.SERVERBOUND_HELLO_MODERN, payloadListener);
+            getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.CLIENTBOUND_HELLO_MODERN);
         }
     }
 }

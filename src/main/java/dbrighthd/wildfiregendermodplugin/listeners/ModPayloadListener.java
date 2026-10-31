@@ -25,11 +25,18 @@ public class ModPayloadListener implements PluginMessageListener {
 
     @Override
     public void onPluginMessageReceived(@NotNull String channel, @NotNull Player player, byte[] message) {
-        if (!channel.equals(ModConstants.SEND_GENDER_INFO)
-                && !channel.equals(ModConstants.FORGE)
-                && !channel.equals(ModConstants.SERVERBOUND_HELLO)) return;
+        boolean hello = channel.equals(ModConstants.SERVERBOUND_HELLO)
+                || channel.equals(ModConstants.SERVERBOUND_HELLO_MODERN);
 
-        boolean hello = channel.equals(ModConstants.SERVERBOUND_HELLO);
+        boolean isForge = channel.equals(ModConstants.FORGE) || channel.equals(ModConstants.FORGE_MODERN);
+
+        boolean syncChannel = channel.equals(ModConstants.SEND_GENDER_INFO)
+                || channel.equals(ModConstants.SERVERBOUND_SYNC_MODERN)
+                || channel.equals(ModConstants.SYNC_MODERN)
+                || isForge;
+
+        if (!hello && !syncChannel) return;
+
         int maximumSize = hello ? InboundPacketGuard.MAX_HELLO_BYTES : InboundPacketGuard.MAX_SYNC_BYTES;
         if (message.length > maximumSize) {
             warn(player, "Rejected oversized " + (hello ? "hello" : "sync")
@@ -43,13 +50,13 @@ public class ModPayloadListener implements PluginMessageListener {
         }
 
         if (hello) {
-            handleHello(player, message);
+            handleHello(player, channel, message);
             return;
         }
 
         ModUser user;
         try {
-            user = plugin.getNetworkManager().deserializeUser(message, channel.equals(ModConstants.FORGE));
+            user = plugin.getNetworkManager().deserializeUser(message, isForge);
         } catch (IOException ex) {
             warn(player, ex, "Rejected malformed sync payload from %s");
             return;
@@ -66,12 +73,22 @@ public class ModPayloadListener implements PluginMessageListener {
         plugin.getCustomLogger().debug("Stored %s as %s",
                 player.getName(), user.configuration().generalOptions().genderIdentity().name());
 
+        if (channel.equals(ModConstants.SERVERBOUND_SYNC_MODERN)) {
+            plugin.getSyncStateCoordinator().onChannelRegistered(player, ModConstants.CLIENTBOUND_SYNC_MODERN);
+        } else if (channel.equals(ModConstants.SEND_GENDER_INFO)) {
+            plugin.getSyncStateCoordinator().onChannelRegistered(player, ModConstants.SYNC);
+        } else if (isForge) {
+            plugin.getSyncStateCoordinator().onChannelRegistered(player, channel);
+        }
+
         plugin.getNetworkManager().broadcast(player, user);
     }
 
-    private void handleHello(Player player, byte[] message) {
+    private void handleHello(Player player, String channel, byte[] message) {
         try {
-            NetworkManager.HelloResult result = plugin.getNetworkManager().handleHello(player, message);
+            NetworkManager.HelloResult result = ModConstants.SERVERBOUND_HELLO_MODERN.equals(channel)
+                    ? plugin.getNetworkManager().handleHello(player, channel, message)
+                    : plugin.getNetworkManager().handleHello(player, message);
             if (result.compatible()) {
                 plugin.getSyncStateCoordinator().onHelloAccepted(player);
             } else {

@@ -39,7 +39,11 @@ public final class SyncStateCoordinator {
 
         synchronized (state) {
             state.channels.remove(channel);
-            if (channel.equals(ModConstants.SYNC)) state.v5HelloAccepted = false;
+            if (channel.equals(ModConstants.SYNC)
+                    || channel.equals(ModConstants.SYNC_MODERN)
+                    || channel.equals(ModConstants.CLIENTBOUND_SYNC_MODERN)) {
+                state.v5HelloAccepted = false;
+            }
         }
     }
 
@@ -87,16 +91,27 @@ public final class SyncStateCoordinator {
     }
 
     private String preferredChannel(ViewerState state) {
-        if (state.channels.contains(ModConstants.SYNC)
-                && (!plugin.getNetworkManager().supportsHello() || state.v5HelloAccepted)) {
+        boolean helloOk = !plugin.getNetworkManager().supportsHello() || state.v5HelloAccepted;
+        if (state.channels.contains(ModConstants.CLIENTBOUND_SYNC_MODERN) && helloOk) {
+            return ModConstants.CLIENTBOUND_SYNC_MODERN;
+        }
+        if (state.channels.contains(ModConstants.SYNC_MODERN) && helloOk) {
+            return ModConstants.SYNC_MODERN;
+        }
+        if (state.channels.contains(ModConstants.SYNC) && helloOk) {
             return ModConstants.SYNC;
         }
+        if (state.channels.contains(ModConstants.FORGE_MODERN)) return ModConstants.FORGE_MODERN;
         if (state.channels.contains(ModConstants.FORGE)) return ModConstants.FORGE;
         return null;
     }
 
     private static boolean isSyncChannel(String channel) {
-        return channel.equals(ModConstants.SYNC) || channel.equals(ModConstants.FORGE);
+        return channel.equals(ModConstants.SYNC)
+                || channel.equals(ModConstants.SYNC_MODERN)
+                || channel.equals(ModConstants.CLIENTBOUND_SYNC_MODERN)
+                || channel.equals(ModConstants.FORGE)
+                || channel.equals(ModConstants.FORGE_MODERN);
     }
 
     private static final class ViewerState {

@@ -86,18 +86,28 @@ public class NetworkManager {
     }
 
     public HelloResult handleHello(Player target, byte[] data) throws IOException {
+        return handleHello(target, ModConstants.SERVERBOUND_HELLO, data);
+    }
+
+    public HelloResult handleHello(Player target, String channel, byte[] data) throws IOException {
         try (CraftInputStream input = CraftInputStream.ofBytes(data)) {
             int clientVersion = input.readVarInt();
             if (input.available() != 0) {
                 throw new IOException("Unexpected trailing data in sync hello");
             }
 
-            try (ByteArrayOutputStream payload = new ByteArrayOutputStream();
-                 CraftOutputStream output = new CraftOutputStream(payload)) {
-                output.writeVarInt(SYNC_HELLO_VERSION);
-                sendIfListening(target, ModConstants.CLIENTBOUND_HELLO, payload.toByteArray());
+            boolean compatible = clientVersion == SYNC_HELLO_VERSION;
+            if (compatible) {
+                try (ByteArrayOutputStream payload = new ByteArrayOutputStream();
+                     CraftOutputStream output = new CraftOutputStream(payload)) {
+                    output.writeVarInt(SYNC_HELLO_VERSION);
+                    String responseChannel = ModConstants.SERVERBOUND_HELLO_MODERN.equals(channel)
+                            ? ModConstants.CLIENTBOUND_HELLO_MODERN
+                            : ModConstants.CLIENTBOUND_HELLO;
+                    sendIfListening(target, responseChannel, payload.toByteArray());
+                }
             }
-            return new HelloResult(clientVersion, clientVersion == SYNC_HELLO_VERSION);
+            return new HelloResult(clientVersion, compatible);
         } catch (RuntimeException ex) {
             throw new IOException("Could not handle sync hello", ex);
         }
@@ -124,15 +134,19 @@ public class NetworkManager {
         if (!target.isOnline() || target.getUniqueId().equals(user.userId())) return;
 
         String channel = plugin.getSyncStateCoordinator().preferredChannel(target);
-        if (ModConstants.SYNC.equals(channel) && user.fabricData().length > 0) {
-            target.sendPluginMessage(plugin, channel, user.fabricData());
-        } else if (ModConstants.FORGE.equals(channel) && user.forgeData().length > 0) {
-            target.sendPluginMessage(plugin, channel, user.forgeData());
+        if (channel == null) return;
+
+        byte[] data = (ModConstants.FORGE.equals(channel) || ModConstants.FORGE_MODERN.equals(channel))
+                ? user.forgeData()
+                : user.fabricData();
+
+        if (data.length > 0) {
+            target.sendPluginMessage(plugin, channel, data);
         }
     }
 
     private void sendIfListening(Player target, String channel, byte[] data) {
-        if (target.getListeningPluginChannels().contains(channel)) {
+        if (target.getListeningPluginChannels().isEmpty() || target.getListeningPluginChannels().contains(channel)) {
             target.sendPluginMessage(plugin, channel, data);
         }
     }

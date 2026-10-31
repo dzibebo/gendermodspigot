@@ -52,6 +52,21 @@ class NetworkManagerTest {
     }
 
     @Test
+    void repliesToCompatibleModernV5Hello() throws IOException {
+        GenderModPlugin plugin = mock(GenderModPlugin.class);
+        Player player = mock(Player.class);
+        when(player.getListeningPluginChannels()).thenReturn(Set.of(ModConstants.CLIENTBOUND_HELLO_MODERN));
+        NetworkManager manager = new NetworkManager(plugin);
+
+        NetworkManager.HelloResult result = manager.handleHello(player, ModConstants.SERVERBOUND_HELLO_MODERN, new byte[]{1});
+
+        assertTrue(result.compatible());
+        ArgumentCaptor<byte[]> response = ArgumentCaptor.forClass(byte[].class);
+        verify(player).sendPluginMessage(eq(plugin), eq(ModConstants.CLIENTBOUND_HELLO_MODERN), response.capture());
+        assertArrayEquals(new byte[]{1}, response.getValue());
+    }
+
+    @Test
     void reportsMismatchedHelloAndRejectsTrailingData() throws IOException {
         GenderModPlugin plugin = mock(GenderModPlugin.class);
         Player player = mock(Player.class);
@@ -81,6 +96,23 @@ class NetworkManagerTest {
         verify(fabric, times(1)).sendPluginMessage(eq(fixture.plugin()), eq(ModConstants.SYNC), any(byte[].class));
         verify(forge, times(1)).sendPluginMessage(eq(fixture.plugin()), eq(ModConstants.FORGE), any(byte[].class));
         verify(unavailable, never()).sendPluginMessage(any(), any(), any());
+    }
+
+    @Test
+    void broadcastsThroughModernTransports() {
+        Fixture fixture = fixture(5);
+        Player source = player(UUID.randomUUID());
+        Player modernFabric = player(UUID.randomUUID());
+        Player modernForge = player(UUID.randomUUID());
+        doReturn(List.of(source, modernFabric, modernForge)).when(fixture.server()).getOnlinePlayers();
+        when(fixture.coordinator().preferredChannel(modernFabric)).thenReturn(ModConstants.CLIENTBOUND_SYNC_MODERN);
+        when(fixture.coordinator().preferredChannel(modernForge)).thenReturn(ModConstants.FORGE_MODERN);
+        ModUser user = ProtocolTest.testUser(source.getUniqueId());
+
+        fixture.networkManager().broadcast(source, user);
+
+        verify(modernFabric, times(1)).sendPluginMessage(eq(fixture.plugin()), eq(ModConstants.CLIENTBOUND_SYNC_MODERN), any(byte[].class));
+        verify(modernForge, times(1)).sendPluginMessage(eq(fixture.plugin()), eq(ModConstants.FORGE_MODERN), any(byte[].class));
     }
 
     @Test
@@ -136,10 +168,10 @@ class NetworkManagerTest {
     }
 
     private record Fixture(
-            GenderModPlugin plugin,
-            NetworkManager networkManager,
-            Server server,
-            SyncStateCoordinator coordinator,
-            UserManager userManager) {
+        GenderModPlugin plugin,
+        NetworkManager networkManager,
+        Server server,
+        SyncStateCoordinator coordinator,
+        UserManager userManager) {
     }
 }

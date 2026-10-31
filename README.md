@@ -32,10 +32,10 @@ Download from Modrinth: https://modrinth.com/plugin/female-gender-spigot
 |    2     | 2.8.1 - 3.0.1 |
 |    3     | 3.1.0 - 4.0.0 |
 |    4     | 4.0.1 - 4.3.4 |
-|    5     | 5.0.0-Beta.4  |
+|    5     | 5.0.0+ (Minecraft 1.21.x / 26.x)  |
 
 Setting this value to -1 will try using the newest known protocol, useful so you don't need to change this manually
 every time you update the mod and plugin.
 
-Protocol V5 support is verified against `5.0.0-Beta.4`, including its play-phase hello handshake. Future handshake
+Protocol V5 support is verified against `5.0.0+ (Minecraft 1.21.x / 26.x)`, including its play-phase hello handshake. Future handshake
 revisions are not assumed to be compatible until they have been tested.
