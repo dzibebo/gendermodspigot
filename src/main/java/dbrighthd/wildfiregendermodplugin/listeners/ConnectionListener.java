@@ -5,14 +5,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRegisterChannelEvent;
+import org.bukkit.event.player.PlayerUnregisterChannelEvent;
 
-import java.util.Collections;
 import java.util.UUID;
 
 /**
- * Handles player join and quit events.
+ * Handles player channel and lifecycle events.
  *
  * @author winnpixie
  */
@@ -24,23 +24,23 @@ public class ConnectionListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
-    private void onPlayerJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
+    void onChannelRegistered(PlayerRegisterChannelEvent event) {
+        plugin.getSyncStateCoordinator().onChannelRegistered(event.getPlayer(), event.getChannel());
+    }
 
-        plugin.getCustomLogger().info("Syncing %s", player.getName());
-
-        // Send ALL stored mod configurations to the newly joined player.
-        plugin.getNetworkManager().sync(Collections.singletonList(player));
+    @EventHandler(priority = EventPriority.MONITOR)
+    void onChannelUnregistered(PlayerUnregisterChannelEvent event) {
+        plugin.getSyncStateCoordinator().onChannelUnregistered(event.getPlayer(), event.getChannel());
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
-    private void onPlayerQuit(PlayerQuitEvent event) {
+    void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
         plugin.getCustomLogger().debug("Removing %s", player.getName());
-
-        // Remove configuration for a player who is no longer online.
-        plugin.getUserManager().getUsers().remove(uuid);
+        plugin.getSyncStateCoordinator().remove(player);
+        plugin.getInboundPacketGuard().remove(uuid);
+        plugin.getUserManager().remove(uuid);
     }
 }

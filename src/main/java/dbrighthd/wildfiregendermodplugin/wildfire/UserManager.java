@@ -1,20 +1,26 @@
 package dbrighthd.wildfiregendermodplugin.wildfire;
 
-import dbrighthd.wildfiregendermodplugin.wildfire.setup.ModConfiguration;
-
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 public class UserManager {
-    private final Map<UUID, ModUser> users = new HashMap<>();
+    private final ConcurrentMap<UUID, ModUser> users = new ConcurrentHashMap<>();
 
-    /**
-     * A map to link players (by {@link UUID}) to their {@link ModConfiguration}.
-     *
-     * @return The underlying map.
-     */
-    public Map<UUID, ModUser> getUsers() {
-        return users;
+    public void put(ModUser user) {
+        users.put(user.userId(), user);
+    }
+
+    public void remove(UUID userId) {
+        users.remove(userId);
+    }
+
+    public List<ModUser> snapshot() {
+        return List.copyOf(users.values());
+    }
+
+    public void clear() {
+        users.clear();
     }
 }

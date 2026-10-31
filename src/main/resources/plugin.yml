@@ -2,4 +2,4 @@ name: Female-Gender-Mod-Plugin
 version: '${project.version}'
 main: dbrighthd.wildfiregendermodplugin.GenderModPlugin
 api-version: '1.21'
-authors: [ 'dbrighthd', 'Stigstille', 'winnpixie' ]
+authors: [ 'dbrighthd', 'Stigstille', 'winnpixie', 'BF-GO' ]

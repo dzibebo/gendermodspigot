@@ -18,7 +18,7 @@ public class ModSyncPacketV5 implements ModSyncPacket {
 
     @Override
     public String getModRange() {
-        return "5.0.0 - ?.?.?";
+        return "5.0.0-Beta.4";
     }
 
     @Override
@@ -103,15 +103,25 @@ public class ModSyncPacketV5 implements ModSyncPacket {
 
     private UVLayout readUVLayout(CraftInputStream input) throws IOException {
         int count = input.readVarInt();
+        if (count < 0 || count > UVDirection.values().length) {
+            throw new IOException("Invalid UV quad count: " + count);
+        }
+
         Map<UVDirection, UVQuad> quads = new EnumMap<>(UVDirection.class);
         for (int i = 0; i < count; i++) {
-            UVDirection direction = UVDirection.byId(input.readVarInt());
+            int directionId = input.readVarInt();
+            if (directionId < 0 || directionId >= UVDirection.values().length) {
+                throw new IOException("Invalid UV direction: " + directionId);
+            }
+            UVDirection direction = UVDirection.byId(directionId);
             UVQuad quad = new UVQuad(
                     input.readVarInt(),
                     input.readVarInt(),
                     input.readVarInt(),
                     input.readVarInt());
-            quads.put(direction, quad);
+            if (quads.put(direction, quad) != null) {
+                throw new IOException("Duplicate UV direction: " + direction);
+            }
         }
         return new UVLayout(quads);
     }
