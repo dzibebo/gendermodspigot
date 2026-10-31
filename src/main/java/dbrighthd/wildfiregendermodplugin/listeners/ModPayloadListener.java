@@ -32,6 +32,7 @@ public class ModPayloadListener implements PluginMessageListener {
 
         boolean syncChannel = channel.equals(ModConstants.SEND_GENDER_INFO)
                 || channel.equals(ModConstants.SERVERBOUND_SYNC_MODERN)
+                || channel.equals(ModConstants.SERVERBOUND_SYNC_LEGACY)
                 || channel.equals(ModConstants.SYNC_MODERN)
                 || isForge;
 
@@ -75,6 +76,8 @@ public class ModPayloadListener implements PluginMessageListener {
 
         if (channel.equals(ModConstants.SERVERBOUND_SYNC_MODERN)) {
             plugin.getSyncStateCoordinator().onChannelRegistered(player, ModConstants.CLIENTBOUND_SYNC_MODERN);
+        } else if (channel.equals(ModConstants.SERVERBOUND_SYNC_LEGACY)) {
+            plugin.getSyncStateCoordinator().onChannelRegistered(player, ModConstants.CLIENTBOUND_SYNC_LEGACY);
         } else if (channel.equals(ModConstants.SEND_GENDER_INFO)) {
             plugin.getSyncStateCoordinator().onChannelRegistered(player, ModConstants.SYNC);
         } else if (isForge) {

@@ -87,6 +87,19 @@ class SyncStateCoordinatorTest {
     }
 
     @Test
+    void legacyClientboundSyncRequiresHelloOnV5() {
+        Fixture fixture = fixture(true);
+        Player viewer = player();
+
+        fixture.coordinator().onChannelRegistered(viewer, ModConstants.CLIENTBOUND_SYNC_LEGACY);
+        verify(fixture.networkManager(), never()).syncTo(viewer);
+
+        fixture.coordinator().onHelloAccepted(viewer);
+        verify(fixture.networkManager()).syncTo(viewer);
+        assertEquals(ModConstants.CLIENTBOUND_SYNC_LEGACY, fixture.coordinator().preferredChannel(viewer));
+    }
+
+    @Test
     void fabricTakesPriorityWithoutDuplicateCatchUp() {
         Fixture fixture = fixture(true);
         Player viewer = player();

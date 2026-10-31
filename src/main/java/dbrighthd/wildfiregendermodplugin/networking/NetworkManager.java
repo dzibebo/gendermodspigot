@@ -104,7 +104,7 @@ public class NetworkManager {
                     String responseChannel = ModConstants.SERVERBOUND_HELLO_MODERN.equals(channel)
                             ? ModConstants.CLIENTBOUND_HELLO_MODERN
                             : ModConstants.CLIENTBOUND_HELLO;
-                    sendIfListening(target, responseChannel, payload.toByteArray());
+                    target.sendPluginMessage(plugin, responseChannel, payload.toByteArray());
                 }
             }
             return new HelloResult(clientVersion, compatible);
@@ -141,12 +141,6 @@ public class NetworkManager {
                 : user.fabricData();
 
         if (data.length > 0) {
-            target.sendPluginMessage(plugin, channel, data);
-        }
-    }
-
-    private void sendIfListening(Player target, String channel, byte[] data) {
-        if (target.getListeningPluginChannels().isEmpty() || target.getListeningPluginChannels().contains(channel)) {
             target.sendPluginMessage(plugin, channel, data);
         }
     }

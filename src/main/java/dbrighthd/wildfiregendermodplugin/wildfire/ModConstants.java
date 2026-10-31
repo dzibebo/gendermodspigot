@@ -25,6 +25,7 @@ public final class ModConstants {
      * Payload channel used by legacy mod users to send their bodily configuration to the server.
      */
     public static final String SEND_GENDER_INFO = MOD_ID_LEGACY + ":send_gender_info";
+    public static final String SERVERBOUND_SYNC_LEGACY = MOD_ID_LEGACY + ":serverbound/sync";
 
     /**
      * Payload channel used by modern mod users to send their bodily configuration to the server.
@@ -41,6 +42,7 @@ public final class ModConstants {
      * Payload channel used by the server to send mod users others' bodily configurations (legacy).
      */
     public static final String SYNC = MOD_ID_LEGACY + ":sync";
+    public static final String CLIENTBOUND_SYNC_LEGACY = MOD_ID_LEGACY + ":clientbound/sync";
 
     /**
      * Payload channel used by the server to send mod users others' bodily configurations (modern).

@@ -40,6 +40,7 @@ public final class SyncStateCoordinator {
         synchronized (state) {
             state.channels.remove(channel);
             if (channel.equals(ModConstants.SYNC)
+                    || channel.equals(ModConstants.CLIENTBOUND_SYNC_LEGACY)
                     || channel.equals(ModConstants.SYNC_MODERN)
                     || channel.equals(ModConstants.CLIENTBOUND_SYNC_MODERN)) {
                 state.v5HelloAccepted = false;
@@ -98,6 +99,9 @@ public final class SyncStateCoordinator {
         if (state.channels.contains(ModConstants.SYNC_MODERN) && helloOk) {
             return ModConstants.SYNC_MODERN;
         }
+        if (state.channels.contains(ModConstants.CLIENTBOUND_SYNC_LEGACY) && helloOk) {
+            return ModConstants.CLIENTBOUND_SYNC_LEGACY;
+        }
         if (state.channels.contains(ModConstants.SYNC) && helloOk) {
             return ModConstants.SYNC;
         }
@@ -108,6 +112,7 @@ public final class SyncStateCoordinator {
 
     private static boolean isSyncChannel(String channel) {
         return channel.equals(ModConstants.SYNC)
+                || channel.equals(ModConstants.CLIENTBOUND_SYNC_LEGACY)
                 || channel.equals(ModConstants.SYNC_MODERN)
                 || channel.equals(ModConstants.CLIENTBOUND_SYNC_MODERN)
                 || channel.equals(ModConstants.FORGE)

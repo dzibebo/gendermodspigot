@@ -84,7 +84,9 @@ public final class GenderModPlugin extends JavaPlugin {
 
         // Legacy (wildfire_gender) - Fabric
         getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.SEND_GENDER_INFO, payloadListener);
+        getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.SERVERBOUND_SYNC_LEGACY, payloadListener);
         getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.SYNC);
+        getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.CLIENTBOUND_SYNC_LEGACY);
 
         // Legacy (wildfire_gender) - Forge
         getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.FORGE, payloadListener);
