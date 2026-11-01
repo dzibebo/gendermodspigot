@@ -118,9 +118,4 @@ public final class SyncStateCoordinator {
                 || channel.equals(ModConstants.FORGE)
                 || channel.equals(ModConstants.FORGE_MODERN);
     }
-
-    private static final class ViewerState {
-        private final Set<String> channels = new HashSet<>();
-        private boolean v5HelloAccepted;
-    }
 }
