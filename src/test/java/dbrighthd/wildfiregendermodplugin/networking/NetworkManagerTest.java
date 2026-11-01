@@ -43,12 +43,12 @@ class NetworkManagerTest {
         when(player.getListeningPluginChannels()).thenReturn(Set.of(ModConstants.CLIENTBOUND_HELLO));
         NetworkManager manager = new NetworkManager(plugin);
 
-        NetworkManager.HelloResult result = manager.handleHello(player, new byte[]{1});
+        NetworkManager.HelloResult result = manager.handleHello(player, new byte[]{2});
 
         assertTrue(result.compatible());
         ArgumentCaptor<byte[]> response = ArgumentCaptor.forClass(byte[].class);
         verify(player).sendPluginMessage(eq(plugin), eq(ModConstants.CLIENTBOUND_HELLO), response.capture());
-        assertArrayEquals(new byte[]{1}, response.getValue());
+        assertArrayEquals(NetworkManager.createHelloPayload(), response.getValue());
     }
 
     @Test
@@ -58,12 +58,12 @@ class NetworkManagerTest {
         when(player.getListeningPluginChannels()).thenReturn(Set.of(ModConstants.CLIENTBOUND_HELLO_MODERN));
         NetworkManager manager = new NetworkManager(plugin);
 
-        NetworkManager.HelloResult result = manager.handleHello(player, ModConstants.SERVERBOUND_HELLO_MODERN, new byte[]{1});
+        NetworkManager.HelloResult result = manager.handleHello(player, ModConstants.SERVERBOUND_HELLO_MODERN, new byte[]{2});
 
         assertTrue(result.compatible());
         ArgumentCaptor<byte[]> response = ArgumentCaptor.forClass(byte[].class);
         verify(player).sendPluginMessage(eq(plugin), eq(ModConstants.CLIENTBOUND_HELLO_MODERN), response.capture());
-        assertArrayEquals(new byte[]{1}, response.getValue());
+        assertArrayEquals(NetworkManager.createHelloPayload(), response.getValue());
     }
 
     @Test
@@ -73,9 +73,9 @@ class NetworkManagerTest {
         when(player.getListeningPluginChannels()).thenReturn(Set.of());
         NetworkManager manager = new NetworkManager(plugin);
 
-        assertFalse(manager.handleHello(player, new byte[]{2}).compatible());
+        assertFalse(manager.handleHello(player, new byte[]{3}).compatible());
         verify(player, never()).sendPluginMessage(any(), any(), any());
-        assertThrows(IOException.class, () -> manager.handleHello(player, new byte[]{1, 0}));
+        assertThrows(IOException.class, () -> manager.handleHello(player, new byte[]{2, 0}));
     }
 
     @Test

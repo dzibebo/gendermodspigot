@@ -23,33 +23,62 @@ public class ModSyncPacketV5 implements ModSyncPacket {
 
     @Override
     public ModUser read(CraftInputStream input) throws IOException {
+        UUID userId = input.readUUID();
+        return readConfig(input, userId);
+    }
+
+    @Override
+    public ModUser read(CraftInputStream input, UUID fallbackUserId) throws IOException {
+        return readServerbound(input, fallbackUserId);
+    }
+
+    public ModUser readServerbound(CraftInputStream input, UUID userId) throws IOException {
+        UUID effectiveId = userId != null ? userId : new UUID(0L, 0L);
+        return readConfig(input, effectiveId);
+    }
+
+    private ModUser readConfig(CraftInputStream input, UUID userId) throws IOException {
+        boolean hasConfig = input.readBoolean();
+        if (!hasConfig) {
+            return new ModUser(userId, defaultConfiguration(GenderIdentities.MALE));
+        }
+
         GeneralOptions.Builder generalBuilder = new GeneralOptions.Builder();
         PhysicsOptions.Builder physicsBuilder = new PhysicsOptions.Builder();
         BreastOptions.Builder breastBuilder = new BreastOptions.Builder();
 
-        UUID userId = input.readUUID();
-        generalBuilder.setGenderIdentity(input.readEnum(GenderIdentities.class));
-        breastBuilder.setBustSize(input.readFloat());
-        generalBuilder.setHurtSounds(input.readBoolean());
-        generalBuilder.setVoicePitch(input.readFloat());
+        int genderId = input.readVarInt();
+        if (genderId < 0 || genderId >= GenderIdentities.values().length) {
+            throw new IOException("Invalid gender identity ordinal: " + genderId);
+        }
+        generalBuilder.setGenderIdentity(GenderIdentities.values()[genderId]);
 
-        // Physics record
-        physicsBuilder.setBreastPhysics(input.readBoolean());
-        boolean showInArmor = input.readBoolean();
-        generalBuilder.setShowInArmor(showInArmor);
-        physicsBuilder.setArmorPhysics(showInArmor);
-        physicsBuilder.setBuoyancy(input.readFloat()); // Now bounceMultiplier
-        physicsBuilder.setFloppiness(input.readFloat()); // Now floppyMultiplier
-
-        // Breasts record
         breastBuilder.setXOffset(input.readFloat());
         breastBuilder.setYOffset(input.readFloat());
         breastBuilder.setZOffset(input.readFloat());
-        breastBuilder.setUniBoob(input.readBoolean());
+        breastBuilder.setBustSize(input.readFloat());
         breastBuilder.setCleavage(input.readFloat());
 
-        // UV Layouts
+        boolean physicsEnabled = input.readBoolean();
+        physicsBuilder.setBreastPhysics(physicsEnabled);
+        if (physicsEnabled) {
+            breastBuilder.setUniBoob(input.readBoolean());
+            physicsBuilder.setBuoyancy(input.readFloat());
+            physicsBuilder.setFloppiness(input.readFloat());
+        } else {
+            breastBuilder.setUniBoob(true);
+            physicsBuilder.setBuoyancy(0.333f);
+            physicsBuilder.setFloppiness(0.75f);
+        }
+
         UVLayouts uvLayouts = readUVLayouts(input);
+
+        generalBuilder.setHurtSounds(input.readBoolean());
+        generalBuilder.setVoicePitch(input.readFloat());
+
+        boolean showInArmor = input.readBoolean();
+        generalBuilder.setShowInArmor(showInArmor);
+        physicsBuilder.setArmorPhysics(showInArmor);
 
         return new ModUser(userId, new ModConfiguration(
                 generalBuilder.create(),
@@ -60,33 +89,94 @@ public class ModSyncPacketV5 implements ModSyncPacket {
 
     @Override
     public void write(ModUser user, CraftOutputStream output) throws IOException {
+        output.writeUUID(user.userId());
+
         ModConfiguration configuration = user.configuration();
         GeneralOptions general = configuration.generalOptions();
         PhysicsOptions physics = configuration.physicsOptions();
         BreastOptions breast = configuration.breastOptions();
         UVLayouts uvLayouts = configuration.uvLayouts();
 
-        output.writeUUID(user.userId());
-        output.writeEnum(general.genderIdentity());
-        output.writeFloat(breast.bustSize());
-        output.writeBoolean(general.hurtSounds());
-        output.writeFloat(general.voicePitch());
+        if (general.genderIdentity() == GenderIdentities.MALE) {
+            output.writeBoolean(false);
+            return;
+        }
 
-        // Physics record
-        output.writeBoolean(physics.breastPhysics());
-        output.writeBoolean(general.showInArmor());
-        output.writeFloat(physics.buoyancy());
-        output.writeFloat(physics.floppiness());
+        output.writeBoolean(true);
 
-        // Breasts record
+        output.writeVarInt(general.genderIdentity().ordinal());
+
         output.writeFloat(breast.xOffset());
         output.writeFloat(breast.yOffset());
         output.writeFloat(breast.zOffset());
-        output.writeBoolean(breast.uniBoob());
+        output.writeFloat(breast.bustSize());
         output.writeFloat(breast.cleavage());
 
-        // UV Layouts
+        output.writeBoolean(physics.breastPhysics());
+        if (physics.breastPhysics()) {
+            output.writeBoolean(breast.uniBoob());
+            output.writeFloat(physics.buoyancy());
+            output.writeFloat(physics.floppiness());
+        }
+
         writeUVLayouts(uvLayouts, output);
+
+        output.writeBoolean(general.hurtSounds());
+        output.writeFloat(general.voicePitch());
+
+        output.writeBoolean(general.showInArmor());
+    }
+
+    public static ModConfiguration defaultConfiguration(GenderIdentities identity) {
+        return new ModConfiguration(
+                new GeneralOptions(identity, true, 1.0f, true),
+                new PhysicsOptions(true, true, 0.333f, 0.75f),
+                new BreastOptions(identity == GenderIdentities.MALE ? 0.0f : 0.6f, 0.0f, 0.0f, 0.0f, true, 0.0f),
+                new UVLayouts(
+                        new UVLayouts.Layer(defaultSkinLeft(), defaultSkinRight()),
+                        new UVLayouts.Layer(defaultOverlayLeft(), defaultOverlayRight())
+                )
+        );
+    }
+
+    public static UVLayout defaultSkinLeft() {
+        Map<UVDirection, UVQuad> map = new EnumMap<>(UVDirection.class);
+        map.put(UVDirection.EAST, new UVQuad(24, 21, 27, 26));
+        map.put(UVDirection.WEST, new UVQuad(16, 21, 20, 26));
+        map.put(UVDirection.DOWN, new UVQuad(20, 17, 24, 21));
+        map.put(UVDirection.UP, new UVQuad(20, 25, 24, 27));
+        map.put(UVDirection.NORTH, new UVQuad(20, 21, 24, 26));
+        return new UVLayout(map);
+    }
+
+    public static UVLayout defaultSkinRight() {
+        Map<UVDirection, UVQuad> map = new EnumMap<>(UVDirection.class);
+        map.put(UVDirection.EAST, new UVQuad(28, 21, 32, 26));
+        map.put(UVDirection.WEST, new UVQuad(21, 21, 24, 26));
+        map.put(UVDirection.DOWN, new UVQuad(24, 17, 28, 21));
+        map.put(UVDirection.UP, new UVQuad(24, 25, 28, 27));
+        map.put(UVDirection.NORTH, new UVQuad(24, 21, 28, 26));
+        return new UVLayout(map);
+    }
+
+    public static UVLayout defaultOverlayLeft() {
+        Map<UVDirection, UVQuad> map = new EnumMap<>(UVDirection.class);
+        map.put(UVDirection.EAST, new UVQuad(0, 0, 0, 0));
+        map.put(UVDirection.WEST, new UVQuad(17, 37, 20, 42));
+        map.put(UVDirection.DOWN, new UVQuad(20, 34, 24, 37));
+        map.put(UVDirection.UP, new UVQuad(20, 41, 24, 44));
+        map.put(UVDirection.NORTH, new UVQuad(20, 37, 24, 42));
+        return new UVLayout(map);
+    }
+
+    public static UVLayout defaultOverlayRight() {
+        Map<UVDirection, UVQuad> map = new EnumMap<>(UVDirection.class);
+        map.put(UVDirection.EAST, new UVQuad(28, 37, 31, 42));
+        map.put(UVDirection.WEST, new UVQuad(0, 0, 0, 0));
+        map.put(UVDirection.DOWN, new UVQuad(24, 34, 28, 37));
+        map.put(UVDirection.UP, new UVQuad(24, 41, 28, 44));
+        map.put(UVDirection.NORTH, new UVQuad(24, 37, 28, 42));
+        return new UVLayout(map);
     }
 
     private UVLayouts readUVLayouts(CraftInputStream input) throws IOException {
@@ -127,24 +217,19 @@ public class ModSyncPacketV5 implements ModSyncPacket {
     }
 
     private void writeUVLayouts(UVLayouts layouts, CraftOutputStream output) throws IOException {
-        if (layouts == null) {
-            // Write empty layouts if null
-            writeLayer(null, output);
-            writeLayer(null, output);
-            return;
-        }
-        writeLayer(layouts.skin(), output);
-        writeLayer(layouts.overlay(), output);
+        UVLayouts effective = layouts != null ? layouts : new UVLayouts(
+                new UVLayouts.Layer(defaultSkinLeft(), defaultSkinRight()),
+                new UVLayouts.Layer(defaultOverlayLeft(), defaultOverlayRight())
+        );
+        writeLayer(effective.skin(), defaultSkinLeft(), defaultSkinRight(), output);
+        writeLayer(effective.overlay(), defaultOverlayLeft(), defaultOverlayRight(), output);
     }
 
-    private void writeLayer(UVLayouts.Layer layer, CraftOutputStream output) throws IOException {
-        if (layer == null) {
-            writeUVLayout(null, output);
-            writeUVLayout(null, output);
-            return;
-        }
-        writeUVLayout(layer.left(), output);
-        writeUVLayout(layer.right(), output);
+    private void writeLayer(UVLayouts.Layer layer, UVLayout fallbackLeft, UVLayout fallbackRight, CraftOutputStream output) throws IOException {
+        UVLayout left = layer != null && layer.left() != null && !layer.left().getQuads().isEmpty() ? layer.left() : fallbackLeft;
+        UVLayout right = layer != null && layer.right() != null && !layer.right().getQuads().isEmpty() ? layer.right() : fallbackRight;
+        writeUVLayout(left, output);
+        writeUVLayout(right, output);
     }
 
     private void writeUVLayout(UVLayout layout, CraftOutputStream output) throws IOException {

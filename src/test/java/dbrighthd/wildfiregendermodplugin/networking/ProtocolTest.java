@@ -37,8 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ProtocolTest {
     @Test
-    void parsesReleasedBeta4Fixture() throws IOException {
-        try (CraftInputStream input = CraftInputStream.ofBytes(beta4Fixture())) {
+    void parsesModernV5Fixture() throws IOException {
+        try (CraftInputStream input = CraftInputStream.ofBytes(modernV5Fixture())) {
             ModUser user = new ModSyncPacketV5().read(input);
             assertNotNull(user);
             assertEquals(UUID.fromString("00112233-4455-6677-8899-aabbccddeeff"), user.userId());
@@ -87,6 +87,37 @@ public class ProtocolTest {
     }
 
     @Test
+    void roundTripsMaleDefaultConfig() throws IOException {
+        UUID userId = UUID.randomUUID();
+        ModUser maleUser = new ModUser(userId, ModSyncPacketV5.defaultConfiguration(GenderIdentities.MALE));
+        ModUser decoded = roundTrip(new ModSyncPacketV5(), maleUser);
+
+        assertEquals(userId, decoded.userId());
+        assertEquals(GenderIdentities.MALE, decoded.configuration().generalOptions().genderIdentity());
+    }
+
+    @Test
+    void readServerboundDecodesWithoutUuid() throws IOException {
+        UUID userId = UUID.randomUUID();
+        ModUser original = testUser(userId);
+
+        byte[] clientbound;
+        try (ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+             CraftOutputStream output = new CraftOutputStream(bytes)) {
+            new ModSyncPacketV5().write(original, output);
+            clientbound = bytes.toByteArray();
+        }
+
+        byte[] serverbound = Arrays.copyOfRange(clientbound, 16, clientbound.length);
+
+        try (CraftInputStream input = CraftInputStream.ofBytes(serverbound)) {
+            ModUser decoded = new ModSyncPacketV5().read(input, userId);
+            assertEquals(userId, decoded.userId());
+            assertCoreConfiguration(original, decoded, true);
+        }
+    }
+
+    @Test
     void roundTripsImplementedLegacyProtocols() throws IOException {
         ModUser original = testUser(UUID.randomUUID());
 
@@ -117,39 +148,39 @@ public class ProtocolTest {
 
     @Test
     void rejectsInvalidGenderOrdinal() {
-        byte[] invalid = beta4Fixture();
-        invalid[16] = 3;
+        byte[] invalid = modernV5Fixture();
+        invalid[17] = 5;
 
         assertThrows(IOException.class, () -> readV5(invalid));
     }
 
     @Test
     void rejectsInvalidUvCount() {
-        byte[] invalid = beta4Fixture();
-        invalid[53] = 6;
+        byte[] invalid = modernV5Fixture();
+        invalid[48] = 6;
 
         assertThrows(IOException.class, () -> readV5(invalid));
     }
 
     @Test
     void rejectsInvalidUvDirection() {
-        byte[] invalid = beta4Fixture();
-        invalid[54] = 5;
+        byte[] invalid = modernV5Fixture();
+        invalid[49] = 5;
 
         assertThrows(IOException.class, () -> readV5(invalid));
     }
 
     @Test
     void rejectsDuplicateUvDirection() {
-        byte[] invalid = beta4Fixture();
-        invalid[59] = 0;
+        byte[] invalid = modernV5Fixture();
+        invalid[54] = 0;
 
         assertThrows(IOException.class, () -> readV5(invalid));
     }
 
     @Test
     void rejectsTruncatedPayload() {
-        byte[] fixture = beta4Fixture();
+        byte[] fixture = modernV5Fixture();
         byte[] truncated = Arrays.copyOf(fixture, fixture.length - 1);
 
         assertThrows(IOException.class, () -> readV5(truncated));
@@ -157,7 +188,7 @@ public class ProtocolTest {
 
     @Test
     void decodedUvMapsAreImmutable() throws IOException {
-        ModUser decoded = readV5(beta4Fixture());
+        ModUser decoded = readV5(modernV5Fixture());
         Map<UVDirection, UVQuad> quads = decoded.configuration().uvLayouts().skin().left().getQuads();
 
         assertThrows(UnsupportedOperationException.class,
@@ -165,17 +196,14 @@ public class ProtocolTest {
     }
 
     @Test
-    void encodesV5HelloVersionAsVarInt() throws IOException {
-        byte[] encoded;
-        try (ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-             CraftOutputStream output = new CraftOutputStream(bytes)) {
-            output.writeVarInt(NetworkManager.SYNC_HELLO_VERSION);
-            encoded = bytes.toByteArray();
-        }
+    void encodesV5HelloVersionAsVarIntCollection() throws IOException {
+        byte[] encoded = NetworkManager.createHelloPayload();
 
-        assertArrayEquals(new byte[]{1}, encoded);
+        assertArrayEquals(new byte[]{2, 1, 2}, encoded);
         try (CraftInputStream input = CraftInputStream.ofBytes(encoded)) {
-            assertEquals(NetworkManager.SYNC_HELLO_VERSION, input.readVarInt());
+            assertEquals(2, input.readVarInt());
+            assertEquals(1, input.readVarInt());
+            assertEquals(2, input.readVarInt());
         }
     }
 
@@ -198,32 +226,32 @@ public class ProtocolTest {
         return new ModUser(userId, config);
     }
 
-    static byte[] beta4Fixture() {
-        return new byte[]{
-                0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-                (byte) 0x88, (byte) 0x99, (byte) 0xAA, (byte) 0xBB,
-                (byte) 0xCC, (byte) 0xDD, (byte) 0xEE, (byte) 0xFF,
-                0x02,
-                0x3F, 0x40, 0x00, 0x00,
-                0x01,
-                0x3F, (byte) 0xA0, 0x00, 0x00,
-                0x01,
-                0x00,
-                0x3F, 0x4C, (byte) 0xCC, (byte) 0xCD,
-                0x3F, 0x66, 0x66, 0x66,
-                (byte) 0xBD, (byte) 0xCC, (byte) 0xCC, (byte) 0xCD,
-                0x3E, 0x4C, (byte) 0xCC, (byte) 0xCD,
-                0x3E, (byte) 0x99, (byte) 0x99, (byte) 0x9A,
-                0x01,
-                0x3E, (byte) 0xCC, (byte) 0xCC, (byte) 0xCD,
-                0x05,
-                0x00, 0x00, 0x01, 0x02, 0x03,
-                0x01, 0x04, 0x05, 0x06, 0x07,
-                0x02, 0x08, 0x09, 0x0A, 0x0B,
-                0x03, 0x0C, 0x0D, 0x0E, 0x0F,
-                0x04, 0x10, 0x11, 0x12, 0x13,
-                0x00, 0x00, 0x00
-        };
+    static byte[] modernV5Fixture() {
+        return HexFormat.of().parseHex(
+                "00112233445566778899AABBCCDDEEFF" +
+                        "01" +
+                        "02" +
+                        "BDCCCCCD" +
+                        "3E4CCCCD" +
+                        "3E99999A" +
+                        "3F400000" +
+                        "3ECCCCCD" +
+                        "01" +
+                        "01" +
+                        "3F4CCCCD" +
+                        "3F666666" +
+                        "05" +
+                        "0000010203" +
+                        "0104050607" +
+                        "0208090A0B" +
+                        "030C0D0E0F" +
+                        "0410111213" +
+                        "00" +
+                        "00" +
+                        "00" +
+                        "01" +
+                        "3FA00000" +
+                        "00");
     }
 
     private static byte[] legacyV2Fixture() {

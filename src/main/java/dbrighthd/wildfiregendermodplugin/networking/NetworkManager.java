@@ -23,7 +23,8 @@ import java.util.UUID;
  * @author winnpixie
  */
 public class NetworkManager {
-    public static final int SYNC_HELLO_VERSION = 1;
+    public static final int SYNC_HELLO_VERSION = 2;
+    private static final byte[] HELLO_PAYLOAD = new byte[]{2, 1, 2};
 
     private static final Map<Integer, ModSyncPacket> PACKET_FORMATS = Map.of(
             2, new ModSyncPacketV2(),
@@ -55,33 +56,51 @@ public class NetworkManager {
 
     public void syncTo(Player target) {
         for (ModUser user : plugin.getUserManager().snapshot()) {
-            sendEncoded(target, encodeUser(user));
+            sendEncoded(target, user);
         }
     }
 
     public void broadcast(Player source, ModUser user) {
-        EncodedUser encoded = encodeUser(user);
         for (Player recipient : plugin.getServer().getOnlinePlayers()) {
             if (!recipient.getUniqueId().equals(source.getUniqueId())) {
-                sendEncoded(recipient, encoded);
+                sendEncoded(recipient, user);
             }
         }
     }
 
     public ModUser deserializeUser(byte[] data, boolean forge) throws IOException {
+        return deserializeUser(null, data, forge);
+    }
+
+    public ModUser deserializeUser(Player player, byte[] data, boolean forge) throws IOException {
+        try {
+            return tryDeserialize(player, data, forge, packetFormat);
+        } catch (IOException primaryEx) {
+            for (ModSyncPacket format : PACKET_FORMATS.values()) {
+                if (format == packetFormat) continue;
+                try {
+                    return tryDeserialize(player, data, forge, format);
+                } catch (IOException ignored) {}
+            }
+            throw primaryEx;
+        }
+    }
+
+    private ModUser tryDeserialize(Player player, byte[] data, boolean forge, ModSyncPacket format) throws IOException {
         try (CraftInputStream input = CraftInputStream.ofBytes(data)) {
             if (forge && input.readUnsignedByte() != 1) {
                 throw new IOException("Invalid Forge packet discriminator");
             }
 
-            ModUser user = packetFormat.read(input);
+            UUID fallbackId = player != null ? player.getUniqueId() : null;
+            ModUser user = format.read(input, fallbackId);
             if (input.available() != 0) {
                 throw new IOException("Unexpected trailing data in sync payload");
             }
             ModUserValidator.validate(user);
             return user;
         } catch (RuntimeException ex) {
-            throw new IOException("Could not deserialize user (forge=" + forge + ")", ex);
+            throw new IOException("Could not deserialize user with format " + format.getVersion(), ex);
         }
     }
 
@@ -96,16 +115,12 @@ public class NetworkManager {
                 throw new IOException("Unexpected trailing data in sync hello");
             }
 
-            boolean compatible = clientVersion == SYNC_HELLO_VERSION;
-            if (compatible) {
-                try (ByteArrayOutputStream payload = new ByteArrayOutputStream();
-                     CraftOutputStream output = new CraftOutputStream(payload)) {
-                    output.writeVarInt(SYNC_HELLO_VERSION);
-                    String responseChannel = ModConstants.SERVERBOUND_HELLO_MODERN.equals(channel)
-                            ? ModConstants.CLIENTBOUND_HELLO_MODERN
-                            : ModConstants.CLIENTBOUND_HELLO;
-                    target.sendPluginMessage(plugin, responseChannel, payload.toByteArray());
-                }
+            boolean compatible = clientVersion == 1 || clientVersion == SYNC_HELLO_VERSION;
+            if (compatible && target != null) {
+                String responseChannel = ModConstants.SERVERBOUND_HELLO_MODERN.equals(channel)
+                        ? ModConstants.CLIENTBOUND_HELLO_MODERN
+                        : ModConstants.CLIENTBOUND_HELLO;
+                target.sendPluginMessage(plugin, responseChannel, createHelloPayload());
             }
             return new HelloResult(clientVersion, compatible);
         } catch (RuntimeException ex) {
@@ -113,16 +128,16 @@ public class NetworkManager {
         }
     }
 
-    private EncodedUser encodeUser(ModUser user) {
-        return new EncodedUser(user.userId(), serializeUser(user, false), serializeUser(user, true));
+    public static byte[] createHelloPayload() {
+        return HELLO_PAYLOAD.clone();
     }
 
-    private byte[] serializeUser(ModUser user, boolean forge) {
+    private byte[] serializeUser(ModUser user, boolean forge, ModSyncPacket format) {
         try (ByteArrayOutputStream payload = new ByteArrayOutputStream();
              CraftOutputStream output = new CraftOutputStream(payload)) {
             if (forge) output.writeByte(1);
 
-            packetFormat.write(user, output);
+            format.write(user, output);
             return payload.toByteArray();
         } catch (IOException | RuntimeException ex) {
             plugin.getCustomLogger().warning(ex, "Could not serialize user (forge=%s)", forge);
@@ -130,22 +145,25 @@ public class NetworkManager {
         }
     }
 
-    private void sendEncoded(Player target, EncodedUser user) {
+    private void sendEncoded(Player target, ModUser user) {
         if (!target.isOnline() || target.getUniqueId().equals(user.userId())) return;
 
         String channel = plugin.getSyncStateCoordinator().preferredChannel(target);
         if (channel == null) return;
 
-        byte[] data = (ModConstants.FORGE.equals(channel) || ModConstants.FORGE_MODERN.equals(channel))
-                ? user.forgeData()
-                : user.fabricData();
+        boolean isModern = ModConstants.CLIENTBOUND_SYNC_MODERN.equals(channel)
+                || ModConstants.SYNC_MODERN.equals(channel)
+                || ModConstants.FORGE_MODERN.equals(channel);
 
+        boolean isForge = ModConstants.FORGE.equals(channel) || ModConstants.FORGE_MODERN.equals(channel);
+
+        ModSyncPacket format = isModern ? PACKET_FORMATS.get(5) : PACKET_FORMATS.get(4);
+        if (format == null) format = packetFormat;
+
+        byte[] data = serializeUser(user, isForge, format);
         if (data.length > 0) {
             target.sendPluginMessage(plugin, channel, data);
         }
-    }
-
-    private record EncodedUser(UUID userId, byte[] fabricData, byte[] forgeData) {
     }
 
     public record HelloResult(int clientVersion, boolean compatible) {

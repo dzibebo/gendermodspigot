@@ -7,8 +7,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.LongSupplier;
 
 public final class InboundPacketGuard {
-    public static final int MAX_SYNC_BYTES = 1024;
-    public static final int MAX_HELLO_BYTES = 5;
+    public static final int MAX_SYNC_BYTES = 4096;
+    public static final int MAX_HELLO_BYTES = 16;
 
     static final int CAPACITY = 8;
     static final double REFILL_PER_SECOND = 8.0;

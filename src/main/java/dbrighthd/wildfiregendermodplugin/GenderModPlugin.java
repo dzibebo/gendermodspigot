@@ -5,8 +5,10 @@ import dbrighthd.wildfiregendermodplugin.listeners.ModPayloadListener;
 import dbrighthd.wildfiregendermodplugin.logging.CustomPluginLogger;
 import dbrighthd.wildfiregendermodplugin.networking.InboundPacketGuard;
 import dbrighthd.wildfiregendermodplugin.networking.NetworkManager;
+import dbrighthd.wildfiregendermodplugin.networking.PaperConfigurationBridge;
 import dbrighthd.wildfiregendermodplugin.networking.SyncStateCoordinator;
 import dbrighthd.wildfiregendermodplugin.wildfire.ModConstants;
+import dbrighthd.wildfiregendermodplugin.wildfire.ModUser;
 import dbrighthd.wildfiregendermodplugin.wildfire.UserManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -21,6 +23,7 @@ public final class GenderModPlugin extends JavaPlugin {
     private final NetworkManager networkManager = new NetworkManager(this);
     private final InboundPacketGuard inboundPacketGuard = new InboundPacketGuard();
     private final SyncStateCoordinator syncStateCoordinator = new SyncStateCoordinator(this);
+    private PaperConfigurationBridge paperConfigurationBridge;
 
     @Override
     public void onEnable() {
@@ -34,14 +37,43 @@ public final class GenderModPlugin extends JavaPlugin {
             return;
         }
 
+        paperConfigurationBridge = new PaperConfigurationBridge(this);
+        paperConfigurationBridge.register();
+
         registerEventListeners();
         registerModListeners();
+        initializeOnlinePlayers();
+    }
+
+    private void initializeOnlinePlayers() {
+        for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
+            java.util.Set<String> channels = online.getListeningPluginChannels();
+            boolean isV5 = paperConfigurationBridge != null && paperConfigurationBridge.isEnabled();
+            if (isV5 || channels.contains(ModConstants.CLIENTBOUND_SYNC_MODERN) || channels.contains(ModConstants.SYNC_MODERN)) {
+                syncStateCoordinator.onChannelRegistered(online, ModConstants.CLIENTBOUND_SYNC_MODERN);
+                syncStateCoordinator.onHelloAccepted(online);
+            }
+            networkManager.syncTo(online);
+            ModUser existing = userManager.get(online.getUniqueId());
+            if (existing != null) {
+                networkManager.broadcast(online, existing);
+            } else if (isV5 || channels.contains(ModConstants.CLIENTBOUND_SYNC_MODERN) || channels.contains(ModConstants.SYNC_MODERN)) {
+                ModUser defaultUser = new ModUser(online.getUniqueId(),
+                        dbrighthd.wildfiregendermodplugin.networking.wildfire.ModSyncPacketV5.defaultConfiguration(
+                                dbrighthd.wildfiregendermodplugin.wildfire.setup.GenderIdentities.MALE));
+                userManager.put(defaultUser);
+                networkManager.broadcast(online, defaultUser);
+            }
+        }
     }
 
     @Override
     public void onDisable() {
         getServer().getMessenger().unregisterIncomingPluginChannel(this);
         getServer().getMessenger().unregisterOutgoingPluginChannel(this);
+        if (paperConfigurationBridge != null) {
+            paperConfigurationBridge.clear();
+        }
         inboundPacketGuard.clear();
         syncStateCoordinator.clear();
         userManager.clear();
@@ -67,6 +99,10 @@ public final class GenderModPlugin extends JavaPlugin {
         return syncStateCoordinator;
     }
 
+    public PaperConfigurationBridge getPaperConfigurationBridge() {
+        return paperConfigurationBridge;
+    }
+
     private void registerEventListeners() {
         getServer().getPluginManager().registerEvents(new ConnectionListener(this), this);
     }
@@ -74,7 +110,6 @@ public final class GenderModPlugin extends JavaPlugin {
     private void registerModListeners() {
         ModPayloadListener payloadListener = new ModPayloadListener(this);
 
-        // Modern (female_gender_mod) - Fabric & NeoForge
         getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.SERVERBOUND_SYNC_MODERN, payloadListener);
         getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.SYNC_MODERN, payloadListener);
         getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.CLIENTBOUND_SYNC_MODERN);
@@ -82,13 +117,11 @@ public final class GenderModPlugin extends JavaPlugin {
         getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.FORGE_MODERN, payloadListener);
         getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.FORGE_MODERN);
 
-        // Legacy (wildfire_gender) - Fabric
         getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.SEND_GENDER_INFO, payloadListener);
         getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.SERVERBOUND_SYNC_LEGACY, payloadListener);
         getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.SYNC);
         getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.CLIENTBOUND_SYNC_LEGACY);
 
-        // Legacy (wildfire_gender) - Forge
         getServer().getMessenger().registerIncomingPluginChannel(this, ModConstants.FORGE, payloadListener);
         getServer().getMessenger().registerOutgoingPluginChannel(this, ModConstants.FORGE);
 

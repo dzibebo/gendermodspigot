@@ -57,34 +57,48 @@ public class ModPayloadListener implements PluginMessageListener {
 
         ModUser user;
         try {
-            user = plugin.getNetworkManager().deserializeUser(message, isForge);
+            user = plugin.getNetworkManager().deserializeUser(player, message, isForge);
+            if (user == null) {
+                user = plugin.getNetworkManager().deserializeUser(message, isForge);
+            }
         } catch (IOException ex) {
             warn(player, ex, "Rejected malformed sync payload from %s");
             return;
         }
 
-        if (!player.getUniqueId().equals(user.userId())) {
-            warn(player, "Unauthorized configuration update by %s for " + user.userId());
+        if (user == null) {
+            return;
+        }
 
-            // Early return, unauthorized attempt to set another player's data.
+        if (user.userId() == null && player != null) {
+            user = new ModUser(player.getUniqueId(), user.configuration());
+        }
+
+        if (player != null && !player.getUniqueId().equals(user.userId())) {
+            warn(player, "Unauthorized configuration update by %s for " + user.userId());
             return;
         }
 
         plugin.getUserManager().put(user);
         plugin.getCustomLogger().debug("Stored %s as %s",
-                player.getName(), user.configuration().generalOptions().genderIdentity().name());
+                player != null ? player.getName() : user.userId(),
+                user.configuration().generalOptions().genderIdentity().name());
 
-        if (channel.equals(ModConstants.SERVERBOUND_SYNC_MODERN)) {
-            plugin.getSyncStateCoordinator().onChannelRegistered(player, ModConstants.CLIENTBOUND_SYNC_MODERN);
-        } else if (channel.equals(ModConstants.SERVERBOUND_SYNC_LEGACY)) {
-            plugin.getSyncStateCoordinator().onChannelRegistered(player, ModConstants.CLIENTBOUND_SYNC_LEGACY);
-        } else if (channel.equals(ModConstants.SEND_GENDER_INFO)) {
-            plugin.getSyncStateCoordinator().onChannelRegistered(player, ModConstants.SYNC);
-        } else if (isForge) {
-            plugin.getSyncStateCoordinator().onChannelRegistered(player, channel);
+        if (player != null) {
+            if (channel.equals(ModConstants.SERVERBOUND_SYNC_MODERN) || channel.equals(ModConstants.SYNC_MODERN)) {
+                plugin.getSyncStateCoordinator().onHelloAccepted(player);
+                plugin.getSyncStateCoordinator().onChannelRegistered(player, ModConstants.CLIENTBOUND_SYNC_MODERN);
+            } else if (channel.equals(ModConstants.SERVERBOUND_SYNC_LEGACY)) {
+                plugin.getSyncStateCoordinator().onHelloAccepted(player);
+                plugin.getSyncStateCoordinator().onChannelRegistered(player, ModConstants.CLIENTBOUND_SYNC_LEGACY);
+            } else if (channel.equals(ModConstants.SEND_GENDER_INFO)) {
+                plugin.getSyncStateCoordinator().onChannelRegistered(player, ModConstants.SYNC);
+            } else if (isForge) {
+                plugin.getSyncStateCoordinator().onChannelRegistered(player, channel);
+            }
+
+            plugin.getNetworkManager().broadcast(player, user);
         }
-
-        plugin.getNetworkManager().broadcast(player, user);
     }
 
     private void handleHello(Player player, String channel, byte[] message) {

@@ -12,6 +12,10 @@ public class UserManager {
         users.put(user.userId(), user);
     }
 
+    public ModUser get(UUID userId) {
+        return users.get(userId);
+    }
+
     public void remove(UUID userId) {
         users.remove(userId);
     }
