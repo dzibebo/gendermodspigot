@@ -12,6 +12,8 @@ import dbrighthd.wildfiregendermodplugin.wildfire.ModUser;
 import dbrighthd.wildfiregendermodplugin.wildfire.UserManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
+
 /**
  * The entry-point for this plugin.
  *
@@ -19,7 +21,7 @@ import org.bukkit.plugin.java.JavaPlugin;
  */
 public final class GenderModPlugin extends JavaPlugin {
     private final CustomPluginLogger customLogger = new CustomPluginLogger(this);
-    private final UserManager userManager = new UserManager();
+    private UserManager userManager = new UserManager();
     private final NetworkManager networkManager = new NetworkManager(this);
     private final InboundPacketGuard inboundPacketGuard = new InboundPacketGuard();
     private final SyncStateCoordinator syncStateCoordinator = new SyncStateCoordinator(this);
@@ -30,6 +32,8 @@ public final class GenderModPlugin extends JavaPlugin {
         customLogger.info("By @dbrighthd, with contributions from @stigstille and @winnpixie");
 
         saveDefaultConfig();
+
+        userManager = new UserManager(new File(getDataFolder(), "userdata"));
 
         if (!networkManager.init()) {
             customLogger.severe("INVALID PROTOCOL, DISABLING SELF.");
@@ -53,17 +57,15 @@ public final class GenderModPlugin extends JavaPlugin {
                 syncStateCoordinator.onChannelRegistered(online, ModConstants.CLIENTBOUND_SYNC_MODERN);
                 syncStateCoordinator.onHelloAccepted(online);
             }
-            networkManager.syncTo(online);
-            ModUser existing = userManager.get(online.getUniqueId());
+            ModUser existing = userManager.getByPlayer(online);
             if (existing != null) {
+                if (!existing.userId().equals(online.getUniqueId())) {
+                    existing = new ModUser(online.getUniqueId(), existing.configuration());
+                }
+                userManager.put(existing, online.getName());
                 networkManager.broadcast(online, existing);
-            } else if (isV5 || channels.contains(ModConstants.CLIENTBOUND_SYNC_MODERN) || channels.contains(ModConstants.SYNC_MODERN)) {
-                ModUser defaultUser = new ModUser(online.getUniqueId(),
-                        dbrighthd.wildfiregendermodplugin.networking.wildfire.ModSyncPacketV5.defaultConfiguration(
-                                dbrighthd.wildfiregendermodplugin.wildfire.setup.GenderIdentities.MALE));
-                userManager.put(defaultUser);
-                networkManager.broadcast(online, defaultUser);
             }
+            networkManager.syncTo(online);
         }
     }
 

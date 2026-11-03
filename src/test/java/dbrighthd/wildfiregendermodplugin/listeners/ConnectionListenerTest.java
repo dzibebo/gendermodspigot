@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -89,6 +90,9 @@ class ConnectionListenerTest {
         when(player.getUniqueId()).thenReturn(offlinePlayerId);
         when(player.getName()).thenReturn("Ever0141");
 
+        UUID originalId = UUID.randomUUID();
+        userManager.put(ProtocolTest.testUser(originalId), "Ever0141");
+
         PlayerJoinEvent event = mock(PlayerJoinEvent.class);
         when(event.getPlayer()).thenReturn(player);
 
@@ -103,6 +107,6 @@ class ConnectionListenerTest {
         verify(coordinator).onChannelRegistered(player, ModConstants.CLIENTBOUND_SYNC_MODERN);
         verify(coordinator).onHelloAccepted(player);
         verify(networkManager).syncTo(player);
-        org.junit.jupiter.api.Assertions.assertNotNull(userManager.get(offlinePlayerId));
+        assertNotNull(userManager.get(offlinePlayerId));
     }
 }

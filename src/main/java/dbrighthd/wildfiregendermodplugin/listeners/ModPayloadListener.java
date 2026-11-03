@@ -79,7 +79,7 @@ public class ModPayloadListener implements PluginMessageListener {
             return;
         }
 
-        plugin.getUserManager().put(user);
+        plugin.getUserManager().put(user, player != null ? player.getName() : null);
         plugin.getCustomLogger().debug("Stored %s as %s",
                 player != null ? player.getName() : user.userId(),
                 user.configuration().generalOptions().genderIdentity().name());

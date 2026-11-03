@@ -2,10 +2,8 @@ package dbrighthd.wildfiregendermodplugin.listeners;
 
 import dbrighthd.wildfiregendermodplugin.GenderModPlugin;
 import dbrighthd.wildfiregendermodplugin.networking.NetworkManager;
-import dbrighthd.wildfiregendermodplugin.networking.wildfire.ModSyncPacketV5;
 import dbrighthd.wildfiregendermodplugin.wildfire.ModConstants;
 import dbrighthd.wildfiregendermodplugin.wildfire.ModUser;
-import dbrighthd.wildfiregendermodplugin.wildfire.setup.GenderIdentities;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -52,16 +50,16 @@ public class ConnectionListener implements Listener {
         if (v5HandshakeDone) {
             plugin.getSyncStateCoordinator().onChannelRegistered(player, ModConstants.CLIENTBOUND_SYNC_MODERN);
             plugin.getSyncStateCoordinator().onHelloAccepted(player);
-            plugin.getNetworkManager().syncTo(player);
 
-            ModUser existing = plugin.getUserManager().get(uuid);
+            ModUser existing = plugin.getUserManager().getByPlayer(player);
             if (existing != null) {
+                if (!existing.userId().equals(uuid)) {
+                    existing = new ModUser(uuid, existing.configuration());
+                }
+                plugin.getUserManager().put(existing, name);
                 plugin.getNetworkManager().broadcast(player, existing);
-            } else {
-                ModUser defaultUser = new ModUser(uuid, ModSyncPacketV5.defaultConfiguration(GenderIdentities.MALE));
-                plugin.getUserManager().put(defaultUser);
-                plugin.getNetworkManager().broadcast(player, defaultUser);
             }
+            plugin.getNetworkManager().syncTo(player);
         }
     }
 
@@ -76,16 +74,16 @@ public class ConnectionListener implements Listener {
                 || ModConstants.CLIENTBOUND_SYNC_LEGACY.equals(channel)
                 || ModConstants.SYNC.equals(channel)) {
             plugin.getSyncStateCoordinator().onHelloAccepted(player);
-            plugin.getNetworkManager().syncTo(player);
 
-            ModUser existing = plugin.getUserManager().get(player.getUniqueId());
+            ModUser existing = plugin.getUserManager().getByPlayer(player);
             if (existing != null) {
+                if (!existing.userId().equals(player.getUniqueId())) {
+                    existing = new ModUser(player.getUniqueId(), existing.configuration());
+                }
+                plugin.getUserManager().put(existing, player.getName());
                 plugin.getNetworkManager().broadcast(player, existing);
-            } else if (ModConstants.CLIENTBOUND_SYNC_MODERN.equals(channel) || ModConstants.SYNC_MODERN.equals(channel)) {
-                ModUser defaultUser = new ModUser(player.getUniqueId(), ModSyncPacketV5.defaultConfiguration(GenderIdentities.MALE));
-                plugin.getUserManager().put(defaultUser);
-                plugin.getNetworkManager().broadcast(player, defaultUser);
             }
+            plugin.getNetworkManager().syncTo(player);
         }
 
         if (plugin.getPaperConfigurationBridge() == null || !plugin.getPaperConfigurationBridge().isEnabled()) {
@@ -108,6 +106,10 @@ public class ConnectionListener implements Listener {
     void onPlayerChangedWorld(PlayerChangedWorldEvent event) {
         Player player = event.getPlayer();
         if (plugin.getSyncStateCoordinator().preferredChannel(player) != null) {
+            ModUser existing = plugin.getUserManager().getByPlayer(player);
+            if (existing != null) {
+                plugin.getNetworkManager().broadcast(player, existing);
+            }
             plugin.getNetworkManager().syncTo(player);
         }
     }
@@ -117,6 +119,10 @@ public class ConnectionListener implements Listener {
         Player player = event.getPlayer();
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             if (player.isOnline() && plugin.getSyncStateCoordinator().preferredChannel(player) != null) {
+                ModUser existing = plugin.getUserManager().getByPlayer(player);
+                if (existing != null) {
+                    plugin.getNetworkManager().broadcast(player, existing);
+                }
                 plugin.getNetworkManager().syncTo(player);
             }
         });
