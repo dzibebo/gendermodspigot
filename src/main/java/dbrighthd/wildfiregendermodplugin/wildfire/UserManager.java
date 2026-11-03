@@ -49,6 +49,21 @@ public class UserManager {
         }
     }
 
+    public void saveSynchronously(ModUser user, String username) {
+        if (user == null || user.userId() == null) return;
+
+        activeUsers.put(user.userId(), user);
+        savedUsers.put(user.userId(), user);
+
+        if (username != null && !username.isBlank()) {
+            nameIndex.put(username.toLowerCase(Locale.ROOT), user.userId());
+        }
+
+        if (storage != null) {
+            storage.saveSynchronously(user, username);
+        }
+    }
+
     public ModUser get(UUID userId) {
         if (userId == null) return null;
         ModUser active = activeUsers.get(userId);
@@ -81,6 +96,13 @@ public class UserManager {
     }
 
     public void clear() {
+        activeUsers.clear();
+    }
+
+    public void close() {
+        if (storage != null) {
+            storage.close();
+        }
         activeUsers.clear();
     }
 }

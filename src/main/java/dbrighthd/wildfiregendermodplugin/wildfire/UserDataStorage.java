@@ -15,7 +15,9 @@ import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class UserDataStorage {
     private static final int MAGIC = 0x46474D50;
@@ -23,6 +25,11 @@ public class UserDataStorage {
 
     private final File directory;
     private final ModSyncPacketV5 packetCodec = new ModSyncPacketV5();
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "GenderMod-Storage");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public UserDataStorage(File directory) {
         this.directory = directory;
@@ -31,7 +38,12 @@ public class UserDataStorage {
         }
     }
 
-    public synchronized void save(ModUser user, String username) {
+    public void save(ModUser user, String username) {
+        if (user == null || user.userId() == null) return;
+        ioExecutor.submit(() -> saveSynchronously(user, username));
+    }
+
+    public synchronized void saveSynchronously(ModUser user, String username) {
         if (user == null || user.userId() == null) return;
         if (!directory.exists()) {
             directory.mkdirs();
@@ -95,6 +107,18 @@ public class UserDataStorage {
                     }
                 }
             } catch (IOException ignored) {}
+        }
+    }
+
+    public void close() {
+        ioExecutor.shutdown();
+        try {
+            if (!ioExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+                ioExecutor.shutdownNow();
+            }
+        } catch (InterruptedException ex) {
+            ioExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
         }
     }
 }

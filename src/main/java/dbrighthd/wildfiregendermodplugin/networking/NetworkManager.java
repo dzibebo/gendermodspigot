@@ -14,6 +14,7 @@ import org.bukkit.entity.Player;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -55,15 +56,34 @@ public class NetworkManager {
     }
 
     public void syncTo(Player target) {
+        if (!target.isOnline()) return;
+
+        String channel = plugin.getSyncStateCoordinator().preferredChannel(target);
+        if (channel == null) return;
+
+        boolean isModern = ModConstants.CLIENTBOUND_SYNC_MODERN.equals(channel)
+                || ModConstants.SYNC_MODERN.equals(channel)
+                || ModConstants.FORGE_MODERN.equals(channel);
+
+        boolean isForge = ModConstants.FORGE.equals(channel) || ModConstants.FORGE_MODERN.equals(channel);
+
+        ModSyncPacket format = isModern ? PACKET_FORMATS.get(5) : PACKET_FORMATS.get(4);
+        if (format == null) format = packetFormat;
+
         for (ModUser user : plugin.getUserManager().snapshot()) {
-            sendEncoded(target, user);
+            if (target.getUniqueId().equals(user.userId())) continue;
+            byte[] data = serializeUser(user, isForge, format);
+            if (data.length > 0) {
+                target.sendPluginMessage(plugin, channel, data);
+            }
         }
     }
 
     public void broadcast(Player source, ModUser user) {
+        Map<Integer, byte[]> payloadCache = new HashMap<>(4);
         for (Player recipient : plugin.getServer().getOnlinePlayers()) {
             if (!recipient.getUniqueId().equals(source.getUniqueId())) {
-                sendEncoded(recipient, user);
+                sendEncoded(recipient, user, payloadCache);
             }
         }
     }
@@ -146,6 +166,10 @@ public class NetworkManager {
     }
 
     private void sendEncoded(Player target, ModUser user) {
+        sendEncoded(target, user, null);
+    }
+
+    private void sendEncoded(Player target, ModUser user, Map<Integer, byte[]> cache) {
         if (!target.isOnline() || target.getUniqueId().equals(user.userId())) return;
 
         String channel = plugin.getSyncStateCoordinator().preferredChannel(target);
@@ -157,11 +181,13 @@ public class NetworkManager {
 
         boolean isForge = ModConstants.FORGE.equals(channel) || ModConstants.FORGE_MODERN.equals(channel);
 
-        ModSyncPacket format = isModern ? PACKET_FORMATS.get(5) : PACKET_FORMATS.get(4);
-        if (format == null) format = packetFormat;
+        ModSyncPacket packetCodec = isModern ? PACKET_FORMATS.get(5) : PACKET_FORMATS.get(4);
+        final ModSyncPacket resolvedFormat = packetCodec != null ? packetCodec : packetFormat;
 
-        byte[] data = serializeUser(user, isForge, format);
-        if (data.length > 0) {
+        int cacheKey = (resolvedFormat.getVersion() << 1) | (isForge ? 1 : 0);
+        byte[] data = cache != null ? cache.computeIfAbsent(cacheKey, k -> serializeUser(user, isForge, resolvedFormat))
+                : serializeUser(user, isForge, resolvedFormat);
+        if (data != null && data.length > 0) {
             target.sendPluginMessage(plugin, channel, data);
         }
     }

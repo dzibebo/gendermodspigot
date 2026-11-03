@@ -78,7 +78,7 @@ public final class GenderModPlugin extends JavaPlugin {
         }
         inboundPacketGuard.clear();
         syncStateCoordinator.clear();
-        userManager.clear();
+        userManager.close();
     }
 
     public CustomPluginLogger getCustomLogger() {

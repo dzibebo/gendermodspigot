@@ -44,6 +44,7 @@ class UserManagerTest {
         manager1.put(femaleUser, "Alice");
         assertEquals(femaleUser, manager1.get(femaleId));
         assertEquals(femaleUser, manager1.getByUsername("Alice"));
+        manager1.close();
 
         UserManager manager2 = new UserManager(tempDir);
         ModUser loaded = manager2.get(femaleId);
@@ -54,5 +55,6 @@ class UserManagerTest {
         assertEquals(femaleUser.configuration().breastOptions().bustSize(),
                 loaded.configuration().breastOptions().bustSize());
         assertEquals(loaded, manager2.getByUsername("alice"));
+        manager2.close();
     }
 }
