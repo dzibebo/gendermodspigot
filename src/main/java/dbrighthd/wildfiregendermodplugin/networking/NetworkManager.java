@@ -14,7 +14,8 @@ import org.bukkit.entity.Player;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -34,7 +35,16 @@ public class NetworkManager {
             5, new ModSyncPacketV5()
     );
 
+    private static final int PAYLOAD_CACHE_LIMIT = 1024;
+
     private final GenderModPlugin plugin;
+    private final Map<PayloadKey, byte[]> payloadCache = Collections.synchronizedMap(
+            new LinkedHashMap<>(256, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<PayloadKey, byte[]> eldest) {
+                    return size() > PAYLOAD_CACHE_LIMIT;
+                }
+            });
     private ModSyncPacket packetFormat;
 
     public NetworkManager(GenderModPlugin plugin) {
@@ -72,7 +82,7 @@ public class NetworkManager {
 
         for (ModUser user : plugin.getUserManager().snapshot()) {
             if (target.getUniqueId().equals(user.userId())) continue;
-            byte[] data = serializeUser(user, isForge, format);
+            byte[] data = serializedUser(user, isForge, format);
             if (data.length > 0) {
                 target.sendPluginMessage(plugin, channel, data);
             }
@@ -80,10 +90,9 @@ public class NetworkManager {
     }
 
     public void broadcast(Player source, ModUser user) {
-        Map<Integer, byte[]> payloadCache = new HashMap<>(4);
         for (Player recipient : plugin.getServer().getOnlinePlayers()) {
             if (!recipient.getUniqueId().equals(source.getUniqueId())) {
-                sendEncoded(recipient, user, payloadCache);
+                sendEncoded(recipient, user);
             }
         }
     }
@@ -165,11 +174,19 @@ public class NetworkManager {
         }
     }
 
-    private void sendEncoded(Player target, ModUser user) {
-        sendEncoded(target, user, null);
+    private byte[] serializedUser(ModUser user, boolean forge, ModSyncPacket format) {
+        PayloadKey key = new PayloadKey(user, format.getVersion(), forge);
+        byte[] cached = payloadCache.get(key);
+        if (cached != null) return cached;
+
+        byte[] data = serializeUser(user, forge, format);
+        if (data.length > 0) {
+            payloadCache.put(key, data);
+        }
+        return data;
     }
 
-    private void sendEncoded(Player target, ModUser user, Map<Integer, byte[]> cache) {
+    private void sendEncoded(Player target, ModUser user) {
         if (!target.isOnline() || target.getUniqueId().equals(user.userId())) return;
 
         String channel = plugin.getSyncStateCoordinator().preferredChannel(target);
@@ -184,14 +201,15 @@ public class NetworkManager {
         ModSyncPacket packetCodec = isModern ? PACKET_FORMATS.get(5) : PACKET_FORMATS.get(4);
         final ModSyncPacket resolvedFormat = packetCodec != null ? packetCodec : packetFormat;
 
-        int cacheKey = (resolvedFormat.getVersion() << 1) | (isForge ? 1 : 0);
-        byte[] data = cache != null ? cache.computeIfAbsent(cacheKey, k -> serializeUser(user, isForge, resolvedFormat))
-                : serializeUser(user, isForge, resolvedFormat);
-        if (data != null && data.length > 0) {
+        byte[] data = serializedUser(user, isForge, resolvedFormat);
+        if (data.length > 0) {
             target.sendPluginMessage(plugin, channel, data);
         }
     }
 
     public record HelloResult(int clientVersion, boolean compatible) {
+    }
+
+    private record PayloadKey(ModUser user, int version, boolean forge) {
     }
 }

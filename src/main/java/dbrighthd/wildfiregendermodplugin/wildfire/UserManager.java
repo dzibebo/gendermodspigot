@@ -37,14 +37,13 @@ public class UserManager {
     public void put(ModUser user, String username) {
         if (user == null || user.userId() == null) return;
 
-        activeUsers.put(user.userId(), user);
-        savedUsers.put(user.userId(), user);
+        UUID userId = user.userId();
+        activeUsers.put(userId, user);
+        ModUser previous = savedUsers.put(userId, user);
+        boolean nameUnchanged = username == null || username.isBlank()
+                || userId.equals(nameIndex.put(username.toLowerCase(Locale.ROOT), userId));
 
-        if (username != null && !username.isBlank()) {
-            nameIndex.put(username.toLowerCase(Locale.ROOT), user.userId());
-        }
-
-        if (storage != null) {
+        if (storage != null && !(nameUnchanged && user.equals(previous))) {
             storage.save(user, username);
         }
     }

@@ -18,6 +18,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -96,6 +97,23 @@ class NetworkManagerTest {
         verify(fabric, times(1)).sendPluginMessage(eq(fixture.plugin()), eq(ModConstants.SYNC), any(byte[].class));
         verify(forge, times(1)).sendPluginMessage(eq(fixture.plugin()), eq(ModConstants.FORGE), any(byte[].class));
         verify(unavailable, never()).sendPluginMessage(any(), any(), any());
+    }
+
+    @Test
+    void reusesSerializedPayloadsAcrossBroadcasts() {
+        Fixture fixture = fixture(5);
+        Player source = player(UUID.randomUUID());
+        Player viewer = player(UUID.randomUUID());
+        doReturn(List.of(source, viewer)).when(fixture.server()).getOnlinePlayers();
+        when(fixture.coordinator().preferredChannel(viewer)).thenReturn(ModConstants.SYNC);
+        ModUser user = ProtocolTest.testUser(source.getUniqueId());
+
+        fixture.networkManager().broadcast(source, user);
+        fixture.networkManager().broadcast(source, user);
+
+        ArgumentCaptor<byte[]> payloads = ArgumentCaptor.forClass(byte[].class);
+        verify(viewer, times(2)).sendPluginMessage(eq(fixture.plugin()), eq(ModConstants.SYNC), payloads.capture());
+        assertSame(payloads.getAllValues().get(0), payloads.getAllValues().get(1));
     }
 
     @Test

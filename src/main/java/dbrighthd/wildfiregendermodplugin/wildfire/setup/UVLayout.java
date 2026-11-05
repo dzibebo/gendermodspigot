@@ -22,4 +22,14 @@ public class UVLayout {
     public Map<UVDirection, UVQuad> getQuads() {
         return quads;
     }
+
+    @Override
+    public boolean equals(Object other) {
+        return this == other || other instanceof UVLayout layout && quads.equals(layout.quads);
+    }
+
+    @Override
+    public int hashCode() {
+        return quads.hashCode();
+    }
 }

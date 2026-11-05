@@ -12,21 +12,26 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 public class UserDataStorage {
     private static final int MAGIC = 0x46474D50;
     private static final int VERSION = 1;
+    private static final long SHUTDOWN_TIMEOUT_SECONDS = 2;
 
     private final File directory;
     private final ModSyncPacketV5 packetCodec = new ModSyncPacketV5();
-    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor(r -> {
-        Thread thread = new Thread(r, "GenderMod-Storage");
+    private final Map<UUID, PendingSave> pending = new ConcurrentHashMap<>();
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "GenderMod-Storage");
         thread.setDaemon(true);
         return thread;
     });
@@ -40,7 +45,15 @@ public class UserDataStorage {
 
     public void save(ModUser user, String username) {
         if (user == null || user.userId() == null) return;
-        ioExecutor.submit(() -> saveSynchronously(user, username));
+
+        UUID userId = user.userId();
+        if (pending.put(userId, new PendingSave(user, username)) != null) return;
+
+        try {
+            ioExecutor.execute(() -> flush(userId));
+        } catch (RejectedExecutionException ex) {
+            flush(userId);
+        }
     }
 
     public synchronized void saveSynchronously(ModUser user, String username) {
@@ -113,12 +126,23 @@ public class UserDataStorage {
     public void close() {
         ioExecutor.shutdown();
         try {
-            if (!ioExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+            if (!ioExecutor.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 ioExecutor.shutdownNow();
             }
         } catch (InterruptedException ex) {
             ioExecutor.shutdownNow();
             Thread.currentThread().interrupt();
         }
+        List.copyOf(pending.keySet()).forEach(this::flush);
+    }
+
+    private void flush(UUID userId) {
+        PendingSave save = pending.remove(userId);
+        if (save != null) {
+            saveSynchronously(save.user(), save.username());
+        }
+    }
+
+    private record PendingSave(ModUser user, String username) {
     }
 }

@@ -1,6 +1,8 @@
 package dbrighthd.wildfiregendermodplugin.wildfire;
 
 import dbrighthd.wildfiregendermodplugin.networking.ProtocolTest;
+import dbrighthd.wildfiregendermodplugin.networking.wildfire.ModSyncPacketV5;
+import dbrighthd.wildfiregendermodplugin.wildfire.setup.GenderIdentities;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -11,6 +13,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 class UserManagerTest {
     @Test
@@ -33,6 +39,37 @@ class UserManagerTest {
         assertEquals(second, manager.snapshot().getFirst());
         manager.clear();
         assertTrue(manager.snapshot().isEmpty());
+    }
+
+    @Test
+    void skipsPersistenceWhenNothingChanged() {
+        UserDataStorage storage = mock(UserDataStorage.class);
+        UserManager manager = new UserManager(storage);
+        UUID userId = UUID.randomUUID();
+        ModUser user = ProtocolTest.testUser(userId);
+
+        manager.put(user, "Alice");
+        manager.put(ProtocolTest.testUser(userId), "alice");
+        manager.put(ProtocolTest.testUser(userId));
+
+        verify(storage, times(1)).save(any(), any());
+    }
+
+    @Test
+    void persistsAgainWhenProfileOrNameChanges() {
+        UserDataStorage storage = mock(UserDataStorage.class);
+        UserManager manager = new UserManager(storage);
+        UUID userId = UUID.randomUUID();
+        ModUser original = ProtocolTest.testUser(userId);
+        ModUser changed = new ModUser(userId, ModSyncPacketV5.defaultConfiguration(GenderIdentities.MALE));
+
+        manager.put(original, "Alice");
+        manager.put(changed, "Alice");
+        manager.put(changed, "Alicia");
+
+        verify(storage).save(original, "Alice");
+        verify(storage).save(changed, "Alice");
+        verify(storage).save(changed, "Alicia");
     }
 
     @Test
