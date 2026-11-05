@@ -8,7 +8,9 @@ import org.junit.jupiter.api.Test;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -125,6 +127,45 @@ class SyncStateCoordinatorTest {
         fixture.coordinator().onChannelRegistered(viewer, ModConstants.SYNC);
         assertNull(fixture.coordinator().preferredChannel(viewer));
         verify(fixture.networkManager(), times(1)).syncTo(viewer);
+    }
+
+    @Test
+    void claimsResyncOnlyForReadyViewersOnceTheIntervalPassed() {
+        Fixture fixture = fixture(false);
+        Player ready = player();
+        Player unknown = player();
+        fixture.coordinator().onChannelRegistered(ready, ModConstants.SYNC);
+
+        long now = System.nanoTime();
+        long later = now + SyncStateCoordinator.RESYNC_INTERVAL_NANOS;
+
+        assertFalse(fixture.coordinator().claimResync(ready, now));
+        assertTrue(fixture.coordinator().claimResync(ready, later));
+        assertFalse(fixture.coordinator().claimResync(ready, later));
+        assertFalse(fixture.coordinator().claimResync(unknown, later));
+    }
+
+    @Test
+    void doesNotResyncViewersWithoutAUsableChannel() {
+        Fixture fixture = fixture(true);
+        Player viewer = player();
+        fixture.coordinator().onChannelRegistered(viewer, ModConstants.SYNC);
+
+        long later = System.nanoTime() + SyncStateCoordinator.RESYNC_INTERVAL_NANOS;
+
+        assertFalse(fixture.coordinator().claimResync(viewer, later));
+    }
+
+    @Test
+    void markingASyncRestartsTheResyncInterval() {
+        Fixture fixture = fixture(false);
+        Player viewer = player();
+        fixture.coordinator().onChannelRegistered(viewer, ModConstants.SYNC);
+
+        long later = System.nanoTime() + SyncStateCoordinator.RESYNC_INTERVAL_NANOS;
+        fixture.coordinator().markSynced(viewer);
+
+        assertFalse(fixture.coordinator().claimResync(viewer, later - 1));
     }
 
     private static Fixture fixture(boolean supportsHello) {

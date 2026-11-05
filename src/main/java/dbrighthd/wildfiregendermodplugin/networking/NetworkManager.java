@@ -87,6 +87,8 @@ public class NetworkManager {
                 target.sendPluginMessage(plugin, channel, data);
             }
         }
+
+        plugin.getSyncStateCoordinator().markSynced(target);
     }
 
     public void broadcast(Player source, ModUser user) {

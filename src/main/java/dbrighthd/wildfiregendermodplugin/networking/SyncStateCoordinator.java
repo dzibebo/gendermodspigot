@@ -4,6 +4,7 @@ import dbrighthd.wildfiregendermodplugin.GenderModPlugin;
 import dbrighthd.wildfiregendermodplugin.wildfire.ModConstants;
 import org.bukkit.entity.Player;
 
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -11,6 +12,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public final class SyncStateCoordinator {
+    static final long RESYNC_INTERVAL_NANOS = Duration.ofMinutes(5).toNanos();
+
     private final GenderModPlugin plugin;
     private final ConcurrentMap<UUID, ViewerState> viewers = new ConcurrentHashMap<>();
 
@@ -76,6 +79,28 @@ public final class SyncStateCoordinator {
 
         synchronized (state) {
             return preferredChannel(state);
+        }
+    }
+
+    public void markSynced(Player viewer) {
+        ViewerState state = viewers.get(viewer.getUniqueId());
+        if (state == null) return;
+
+        synchronized (state) {
+            state.lastSyncNanos = System.nanoTime();
+        }
+    }
+
+    public boolean claimResync(Player viewer, long nowNanos) {
+        ViewerState state = viewers.get(viewer.getUniqueId());
+        if (state == null) return false;
+
+        synchronized (state) {
+            if (preferredChannel(state) == null) return false;
+            if (nowNanos - state.lastSyncNanos < RESYNC_INTERVAL_NANOS) return false;
+
+            state.lastSyncNanos = nowNanos;
+            return true;
         }
     }
 

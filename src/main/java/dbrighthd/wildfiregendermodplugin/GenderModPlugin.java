@@ -6,6 +6,7 @@ import dbrighthd.wildfiregendermodplugin.logging.CustomPluginLogger;
 import dbrighthd.wildfiregendermodplugin.networking.InboundPacketGuard;
 import dbrighthd.wildfiregendermodplugin.networking.NetworkManager;
 import dbrighthd.wildfiregendermodplugin.networking.PaperConfigurationBridge;
+import dbrighthd.wildfiregendermodplugin.networking.ResyncTask;
 import dbrighthd.wildfiregendermodplugin.networking.SyncStateCoordinator;
 import dbrighthd.wildfiregendermodplugin.wildfire.ModConstants;
 import dbrighthd.wildfiregendermodplugin.wildfire.ModUser;
@@ -20,6 +21,8 @@ import java.io.File;
  * @author dbrighthd
  */
 public final class GenderModPlugin extends JavaPlugin {
+    private static final long RESYNC_CHECK_TICKS = 20L;
+
     private final CustomPluginLogger customLogger = new CustomPluginLogger(this);
     private UserManager userManager = new UserManager();
     private final NetworkManager networkManager = new NetworkManager(this);
@@ -47,6 +50,7 @@ public final class GenderModPlugin extends JavaPlugin {
         registerEventListeners();
         registerModListeners();
         initializeOnlinePlayers();
+        getServer().getScheduler().runTaskTimer(this, new ResyncTask(this), RESYNC_CHECK_TICKS, RESYNC_CHECK_TICKS);
     }
 
     private void initializeOnlinePlayers() {

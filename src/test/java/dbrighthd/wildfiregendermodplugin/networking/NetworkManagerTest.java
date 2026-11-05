@@ -145,6 +145,7 @@ class NetworkManagerTest {
         fixture.networkManager().syncTo(viewer);
 
         verify(viewer, times(1)).sendPluginMessage(eq(fixture.plugin()), eq(ModConstants.SYNC), any(byte[].class));
+        verify(fixture.coordinator()).markSynced(viewer);
     }
 
     @Test

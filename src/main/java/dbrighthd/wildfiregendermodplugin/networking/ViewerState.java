@@ -6,4 +6,5 @@ import java.util.Set;
 final class ViewerState {
     final Set<String> channels = new HashSet<>();
     boolean v5HelloAccepted;
+    long lastSyncNanos = System.nanoTime();
 }
